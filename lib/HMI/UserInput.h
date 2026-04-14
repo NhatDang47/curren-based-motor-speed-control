@@ -1,26 +1,26 @@
 #pragma once
+#include "Config.h"
+#include <stdint.h>
 
-#include "driver/gpio.h"
-#include "esp_adc/adc_oneshot.h"
-
-struct ButtonState {
-    bool btn1;
-    bool btn3;
-    bool btn4;
-};
+enum ButtonID {
+    BTN_NONE = 0,
+    BTN_UP,    // 26
+    BTN_RIGHT, // 25
+    BTN_LEFT,  // 5
+    BTN_DOWN   // 18
+};  
 
 class UserInput {
 private:
-    adc_oneshot_unit_handle_t adc_handle;
-    adc_channel_t pot_channel;
-    uint32_t last_scan_time;
-    ButtonState btn_state;
-    float filtered_adc;
+    ButtonID stable_btn;
+    ButtonID last_btn_state;
+    uint32_t debounce_timer;
+    uint32_t buzzer_timeout;
 
 public:
     UserInput();
-    
     void init();
-    int readPotentiometer();
-    ButtonState scanButtons();
-}; 
+    ButtonID scanButtons(); 
+    void beep(uint32_t duration_ms);
+    void updateBuzzer();
+};
