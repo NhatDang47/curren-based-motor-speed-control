@@ -1,332 +1,115 @@
-![Actual Product](./README/picture.jpg)
-
-# <h1 align="center">⚙️ ESP32 RTOS PID Motor Controller</h1>
+<h1 align="center">🚀 ESP32 DC Motor Current Stabilization</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/ESP32-000000?style=flat-square&logo=espressif&logoColor=white">
   <img src="https://img.shields.io/badge/FreeRTOS-20232A?style=flat-square&logo=freertos&logoColor=2f81f7">
-  <img src="https://img.shields.io/badge/PID_Control-161b22?style=flat-square&logoColor=white">
-  <img src="https://img.shields.io/badge/Embedded_Systems-161b22?style=flat-square">
-  <img src="https://img.shields.io/badge/Motor_Control-161b22?style=flat-square">
+  <img src="https://img.shields.io/badge/C%2B%2B-00599C?style=flat-square&logo=c%2B%2B&logoColor=white">
+  <img src="https://img.shields.io/badge/PID_Control-161b22?style=flat-square">
+  <img src="https://img.shields.io/badge/Embedded_Web_Server-161b22?style=flat-square">
 </p>
-
-> **A closed-loop DC motor control system** implemented on **ESP32 using FreeRTOS and C++ OOP architecture**.  
-> The system provides **real-time monitoring via OLED display** and **wireless PID parameter tuning through a built-in Web Server (Access Point mode)**.
-
----
-
-## 📋 System Overview
-
-This project demonstrates a **real-time embedded control system** combining:
-
-- RTOS multitasking
-- Current loop PID control
-- Real-time HMI
-- Wireless parameter configuration
-- Robust noise filtering techniques
-
-### 🎥 System Demo
 
 <p align="center">
-  <a href="./README/video.mp4">
-    <img src="./README/demo.mp4" width="800">
-  </a>
+  <i>Hệ thống điều khiển vòng kín sử dụng vi điều khiển ESP32 nhằm tự động bù trừ tín hiệu <b>PWM</b>, duy trì ổn định dòng điện tiêu thụ của động cơ DC khi tải trọng cơ học thay đổi.</i>
 </p>
 
----
+<br>
 
-## ✨ 1. System Features
+-----
 
-> **Note:** The features below represent the core capabilities of the RTOS controller.
+# 🚀 ESP32 DC Motor Current Stabilization under Variable Load
 
-### 🔄 RTOS Multi-Tasking
-Independent processing tasks distributed across **ESP32 dual cores**.
+> 💡 **Mục tiêu dự án:** Hệ thống điều khiển vòng kín sử dụng vi điều khiển ESP32 nhằm tự động bù trừ tín hiệu **PWM**, duy trì ổn định dòng điện tiêu thụ của động cơ DC khi tải trọng cơ học biến thiên liên tục.
 
-| CPU Core | Responsibility |
-| :---: | :--- |
-| **Core 0** | HMI / Web server |
-| **Core 1** | Real-time control loop |
+Đề tài giải quyết bài toán chống suy giảm tốc độ/moment xoắn và ngăn chặn hiện tượng quá dòng, kẹt rotor trong các hệ thống cơ điện tử di động.
+[![Xem video](https://img.youtube.com/vi/Xpp17QU-cXo/0.jpg)](https://youtube.com/shorts/Xpp17QU-cXo)
+-----
 
-### 🛜 Web-Based PID Tuning
-The ESP32 operates as a **WiFi Access Point**
+## 🏗️ 1. Kiến trúc Hệ thống
 
-```text
-IP Address: 192.168.4.1
+Hệ thống được thiết kế theo kiến trúc phân tán tác vụ sử dụng **FreeRTOS** để tối ưu hóa hiệu năng, tách biệt hoàn toàn logic điều khiển thời gian thực và giao thức truyền thông.
 
-```
+  * 🧠 **Core 0:** Xử lý stack Wi-Fi (AP Mode) và Web Server bất đồng bộ (Asynchronous HTTP).
+  * ⚙️ **Core 1:**
+      * `TaskControl` *(50ms)*: Chạy thuật toán PID số, đọc ADC (Potentiometer), và giao tiếp I2C với INA219 (Sensor).
+      * `TaskHMI` *(20ms)*: Quét nút nhấn (Debounce logic), cập nhật màn hình OLED và điều khiển Buzzer.
 
-PID parameters can be adjusted **in real time without firmware reflashing**.
-Supported parameters:
+-----
 
-* $K_p$
-* $K_i$
+## 🧮 2. Lý thuyết Điều khiển & Bộ lọc
 
-### 🖥️ Real-Time HMI
+Hệ thống điều khiển dòng điện (Current Loop) yêu cầu tốc độ đáp ứng cao. Do bản chất chổi than của động cơ DC gây ra nhiễu tần số cao, các phương pháp sau được áp dụng:
 
-OLED display supports two visualization modes:
+### 📉 Bộ lọc EMA
 
-* **Text Mode** – static system parameters
-* **Graph Mode** – real-time current waveform visualization
+Áp dụng cho dữ liệu thô từ INA219 đóng vai trò như Low-pass filter bậc 1 để giảm nhiễu gai (spikes) trước khi đưa vào khâu tính toán:
+$I_{filtered}[k] = 0.2 \cdot I_{meas}[k] + 0.8 \cdot I_{filtered}[k-1]$
 
-### 🛡️ Robust Noise Filtering
+### 🎯 Bộ điều khiển PI số
 
-Several hardware and software techniques are used to ensure signal integrity.
+Sử dụng thuật toán PID vị trí với cơ chế **Anti-windup** (ngăn tích phân bão hòa khi PWM đạt 100%). Thông số được thiết lập theo Ziegler-Nichols:
 
-**Analog Filtering**
+  * **$K_p$:** `4.05`
+  * **$K_i$:** `16.2`
+  * **Sampling Time ($T_s$):** `50ms`
 
-* Hardware Low-Pass Filter (0.1µF capacitor)
-* Oversampling ADC
-* EMA digital filtering
+-----
 
-**Encoder Protection**
+## 🔌 3. Cấu hình Phần cứng
 
-* Time-based interrupt debounce (1000 µs)
+  * **MCU:** ESP32 Development Board (ESP-WROOM-32)
+  * **Motor Driver:** L298N (Tần số 5KHz, Resolution 8-bit)
+  * **Current Sensor:** INA219 (I2C Fast Mode 400kHz)
+  * **HMI:** OLED SSD1306 (I2C), Rotary Encoder, 4 Push Buttons, Passive Buzzer.
 
-**Setpoint Stabilization**
+| Phân hệ | Chân tín hiệu | ESP32 GPIO | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| ⚡ **L298N** | `ENA` | **GPIO 13** | LEDC Channel 0, 5KHz (PWM) |
+| | `IN1` | **GPIO 14** | Điều khiển chiều quay |
+| | `IN2` | **GPIO 27** | Điều khiển chiều quay |
+| 🔎 **INA219** | `SDA0` / `SCL0` | **21** / **19** | Bus I2C0 |
+| 📺 **OLED** | `SDA1` / `SCL1` | **22** / **23** | Bus I2C1 |
+| 🎛️ **Sensors** | `POTENTIOMETER`| **GPIO 34** | ADC1 Channel 6 |
+| | `ENCODER` | **GPIO 4** | External Interrupt |
+| 🕹️ **HMI** | `BTN_UP` | **GPIO 26** | Pull-up nội |
+| | `BTN_DOWN` | **GPIO 18** | Pull-up nội |
+| | `BTN_LEFT` | **GPIO 5** | Pull-up nội |
+| | `BTN_RIGHT` | **GPIO 25** | Pull-up nội |
+| | `BUZZER` | **GPIO 32** | Active High |
 
-* Quantization step of **5 mA**
+![Mạch điện](README/docs/hw.PNG)
 
-**Button Input Protection**
+-----
 
-* Double-read validation to reject EMI interference
+## 🌐 4. Web Dashboard
 
-### ⚡ Power Protection
+Khi hệ thống chuyển sang **Mode 5**, ESP32 tự động phát Wi-Fi (Access Point) và khởi tạo Web Server lưu trữ trực tiếp trên bộ nhớ Flash.
 
-Power architecture with isolated voltage domains:
+> 📶 **Thông tin kết nối:**
+>
+>   * **SSID:** `ESP32_PID_TUNING`
+>   * **Password:** `12345678`
+>   * **IP Access:** `http://192.168.4.1`
 
-```text
-12V  → Motor Power
-5V   → Logic supply
-3.3V → ESP32
+**Tính năng UI:**
 
-```
+1.  Theo dõi realtime đồ thị $I_{ref}$ (Setpoint) và $I_{meas}$ (Current) qua API `fetch` (200ms interval).
+2.  Live tuning thông số **Kp, Ki** trực tiếp.
+3.  Điều khiển Start/Stop động cơ từ xa.
 
-Includes:
+![web](README/docs/wd.PNG)
 
-* Schottky diode reverse protection
-* Bulk filtering capacitors
-* Decoupling capacitors for logic circuits
+-----
 
----
+## 🛡️ 5. An toàn
 
-## 🛠️ 2. Hardware Architecture
+Mã nguồn được thiết kế nghiêm ngặt tính đến yếu tố an toàn:
 
-### 📦 2.1 Bill of Materials (BOM)
+  * 🛑 **Deadband Protection:** Nếu Setpoint \< `5.0mA`, hệ thống tự động xóa bộ nhớ tích phân khâu I, xuất PWM = 0 và ngắt động cơ để tránh hiện tượng giật cục sập nguồn do nhiễu ADC vi sai.
+  * 🔒 **Saturate Handling:** Khâu PID tự động ngừng cộng dồn (clamp) sai số tích phân nếu giá trị PWM xuất ra $\ge 255$ hoặc $\le 0$.
+  * 🚦 **Mutex Data Lock:** Mọi biến toàn cục chia sẻ giữa Web Server, TaskControl và TaskHMI đều được bảo vệ bởi `SemaphoreHandle_t` nhằm tránh Data Race Condition giữa các Core xử lý.
 
-| Component | Description |
-| --- | --- |
-| **Controller** | ESP32 DOIT DevKit V1 |
-| **Motor Driver** | L298N H-Bridge |
-| **Motor** | DC Motor 360 (12V, 7000RPM) |
-| **Encoder** | 4 PPR incremental encoder |
-| **Current Sensor** | INA219 High-Side Current Sensor |
-| **Display** | OLED SSD1306 0.96" |
-| **Power Supply** | 12V Adapter |
-| **Buck Converter** | LM2596 |
-| **Passive Components** | Electrolytic capacitors, ceramic capacitors, Schottky diode, potentiometer |
+-----
 
-### 🔌 2.2 Pin Mapping & Schematic
 
-<div align="center">
-<img src="./README/schematic.png" alt="Hardware Schematic" width="800"/>
-</div>
-
-| ESP32 Pin | Net Label | Type | Description |
-| --- | --- | --- | --- |
-| **VIN** | `5V_BUS` | PWR | Logic power from LM2596 |
-| **GPIO34** | `GPIO_34` | ADC | Potentiometer setpoint input |
-| **GPIO32** | `PIN_ENC` | INT | Encoder channel A interrupt |
-| **GPIO21** | `SDA_0` | I2C | INA219 SDA |
-| **GPIO22** | `SCL_0` | I2C | INA219 SCL |
-| **GPIO23** | `SDA_1` | I2C | OLED SDA |
-| **GPIO19** | `SCL_1` | I2C | OLED SCL |
-| **GPIO14** | `BTN_COM` | GPIO | Button matrix common pin |
-| **GPIO25** | `BTN_1` | INPUT | Motor Start / Stop |
-| **GPIO26** | `BTN_3` | INPUT | Display Mode Toggle |
-| **GPIO33** | `BTN_4` | INPUT | Web Config Mode |
-| **GPIO13** | `PIN_ENA` | PWM | PWM output to L298N |
-| **GPIO12** | `PIN_IN1` | OUTPUT | Motor direction control |
-| **GPIO27** | `PIN_IN2` | OUTPUT | Motor direction control |
-
-> **Important:** All modules must share a **common ground**:
-> ESP32, L298N, INA219, LM2596, Encoder
-
----
-
-## 🧠 3. Firmware Architecture
-
-The firmware is implemented using:
-
-* ESP-IDF + PlatformIO
-* FreeRTOS
-* C++ Object-Oriented Design
-
-Two main tasks operate concurrently.
-
-### ⚙️ 3.1 Task Allocation
-
-**TaskControl**
-
-```text
-Core: 1
-Priority: 3
-Loop period: 50 ms
-
-```
-
-Responsibilities:
-
-* Read current measurement from INA219
-* Read filtered ADC setpoint
-* Execute PID current controller
-* Generate PWM signal
-* Control motor direction
-
-**TaskHMI**
-
-```text
-Core: 0
-Priority: 2
-Loop period: 100 ms
-
-```
-
-Responsibilities:
-
-* Process encoder pulses and compute RPM
-* Scan input buttons (non-blocking)
-* Update OLED display
-* Manage Web Server AP mode
-
-> Synchronization between tasks is implemented using: `FreeRTOS SemaphoreHandle_t`
-
----
-
-## 📡 4. Signal Processing Algorithms
-
-### ADC Filtering
-
-The potentiometer signal is filtered using:
-
-* Oversampling (10 samples)
-* EMA Low-Pass Filter
-
-```cpp
-filtered_adc = (0.3f * avg) + (0.7f * filtered_adc);
-
-```
-
-### Setpoint Quantization
-
-Setpoint resolution is limited to **5 mA steps** to prevent display oscillation.
-
-```cpp
-g_setpoint_mA = (float)(((int)(raw_setpoint + 2.5f) / 5) * 5);
-
-```
-
-### Encoder Interrupt Debounce
-
-Motor brush sparks may cause **false encoder interrupts**.
-
-* Maximum speed: `7000 RPM`
-* Minimum valid pulse interval: `≈2142 µs`
-
-The ISR therefore validates pulses using a **time threshold**.
-
-```cpp
-int64_t current_time = esp_timer_get_time();
-
-if (current_time - instance->last_pulse_time > 1000)
-{
-    // Valid pulse
-}
-
-```
-
----
-
-## 🚀 5. Build and Flash
-
-### Development Environment
-
-* VSCode
-* PlatformIO
-* ESP-IDF Framework
-
-### Build
-
-```bash
-pio run
-
-```
-
-### Flash
-
-```bash
-pio run --target upload
-
-```
-
----
-
-## 📐 6. System Dynamics and Control Analysis
-
-The control system is based on **current loop control** of a DC motor.
-
-The electromechanical model is described by two coupled differential equations:
-
-### Electrical Equation
-
-$$V_a(t)=R_a i_a(t)+L_a \frac{di_a(t)}{dt}+e_b(t)$$
-
-### Mechanical Equation
-
-$$T_m(t)=J\frac{d\omega(t)}{dt}+B\omega(t)+T_L(t)$$
-
-### Electromechanical Coupling
-
-Back-EMF:
-
-
-$$e_b(t)=K_e\omega(t)$$
-
-Torque generation:
-
-
-$$T_m(t)=K_t i_a(t)$$
-
-### Control Strategy
-
-The system implements a **current loop PI controller**
-
-
-$$C(s)=K_p+\frac{K_i}{s}$$
-
-> Derivative action is intentionally omitted due to **high-frequency PWM noise**.
-
-### Anti-Windup Protection
-
-The actuator is limited by supply voltage:
-
-```text
-PWM ∈ [0,255]
-
-```
-
-When saturation occurs:
-
-```text
-PWM = 255
-
-```
-
-Integral accumulation is disabled to prevent **integral windup**.
-
----
-
-# License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
+📝 **Tác giả:** Nguyễn Nhật Đăng (B2304624) - Đại học Cần Thơ (CTU)  
+📅 **Cập nhật:** Tháng 4/2026 | **Version:** 1.1.0
